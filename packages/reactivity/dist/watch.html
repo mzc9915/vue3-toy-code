@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module">
+        import { watch, watchEffect, reactive } from './reactivity.js'
+
+        const state = reactive({
+            name: 'zc',
+            age: 27
+        })
+
+        watch(state, (newVal, oldVal)=>{
+            console.log(newVal);
+        }, {
+            immediate: true
+        })
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="module">
+        import { reactive, effect, ref, toRef } from './reactivity.js'
+
+        const state = reactive({
+            name: 'zc',
+            age: 27,
+            flag: true
+        })
+
+        // 1. effect 依赖收集示例: 通过 _trackId 解决
+        // effect(()=>{
+        //     console.log('runner');
+        //     app.innerHTML = state.flag ? `姓名：${state.name}；年龄：${state.age}` : ` 年龄${state.age}`
+        // })
+        // setTimeout(()=>{
+        //     state.flag = false
+
+        //     // 我们需要一个算法，来比对不同分支切换的时候的差异
+        //     setTimeout(()=>{
+        //         console.log('修改属性后，不应该触发 effect 重新执行了');
+        //         state.name = 'zhangchao'
+        //     }, 1000)
+        // }, 1000)
+
+        // 2. 同一个 effect 里，同一个属性只收集一次示例
+        // effect(()=>{
+        //     console.log('runner');
+        //     app.innerHTML = state.flag +  state.flag +  state.flag
+        // })
+        // setTimeout(()=>{
+        //     state.flag = false
+        // })
+
+        // 3.effect 嵌套示例 ： 通过 currentEffect 解决
+        // effect(()=>{
+        //     console.log(state.name);
+        //     effect(()=>{
+        //         console.log(state.age);
+        //     })
+
+        //     console.log(state.age);
+        // })
+
+        // 4. effect 执行时，修改依赖 示例： 通过 _running 解决
+        // effect(()=>{
+        //     app.innerHTML = state.name
+        //     // 如果本次在执行effect的时候更新了数据，不会触发effect更新
+        //     state.name = Math.random()
+        // })
+
+        // 5. ref 的依赖收集 示例
+        // const testRef = ref(1)
+        // const test2Ref = ref({key1: 'aaa', key2: 'ccc'})
+        // effect(()=>{
+        //     console.log('runner');
+        //     // 这里的依赖有： testRef.value、test2Ref.value、test2Ref.value.key1 
+        //     app.innerHTML = `${testRef.value}-${test2Ref.value.key1}`
+        // })
+        // setTimeout(()=>{
+        //     // 虽然 effect 中没有直接用到 key2，但是因为 test2Ref.value 本身变了，所以也会触发 effect
+        //     test2Ref.value.key2 = 'bbb'
+        // }, 1000)
+
+        // 6. toRef
+        // 
+        const nameRef = toRef(state, 'name')
+
+        effect(()=>{
+            console.log('runner');
+            app.innerHTML = `姓名：${state.name}`
+        })
+
+        setTimeout(()=>{
+            // 由于 nameRef 是响应式的，更新 nameRef 会影响原始的 state 对象
+            nameRef.value = 'zhangchao'
+        }, 1000)
+    </script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module">
+        import { computed, ref, effect } from './reactivity.js'
+
+        const name = ref('zc')
+
+        const computedName = computed(()=>{
+            return `姓名：${name.value}`
+        })
+
+        effect(()=>{
+            console.log('runner');
+
+            // 计算属性本身就是一个 effect，只有在访问时（触发get方法）时，才会进行 执行effect.run 方法，进而进行依赖收集
+            // 同时，当取计算属性的时候，会对当前的effect进行依赖收集
+            app.innerHTML = computedName.value
+        })
+
+        setTimeout(()=>{
+            // 当name的值发生变化时，会通知算属性将dirty 变为true，进行通知 计算属性收集到的 effect重新执行
+            name.value = 'zhangchao'
+        },1000)
+
+    </script>
+</body>
+</html>
