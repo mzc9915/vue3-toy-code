@@ -18,7 +18,35 @@
         //     Text,
         // } from "/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-browser.js";
 
-        import {} from './'
+        import { render, h, Fragment, Text } from './runtime-dom.js'
+
+        const vueComponent = {
+            data(){
+                return {
+                    name: 'zc',
+                    age: 26
+                }
+            },
+            props: {
+                address: String
+            },
+            render(proxy){
+                setTimeout(()=>{
+                    this.age++;
+                    this.age++
+                }, 1000)
+
+                return h(Fragment, [
+                    h(Text, 'my name is ' + proxy.name),
+                    h('a', proxy.age),
+                    h('span', `地址是：${proxy.address}`)
+                ])
+            }
+        }
+
+        // 组件两个虚拟节点组成  h(VueComponent)  = vnode  产生的是组件内的虚拟节点
+        
+        render(h(vueComponent, { a: 1, b: 2 }), document.getElementById('app'))
     </script>
 </body>
 

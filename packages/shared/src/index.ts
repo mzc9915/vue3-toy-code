@@ -10,4 +10,9 @@ export const isString = (val)=>{
     return typeof val === 'string'
 }
 
+const hasOwnProperty = Object.prototype.hasOwnProperty
+
+export const hasOwn = (value, key)=> hasOwnProperty.call(value, key)
+
 export * from './shapeFlags'
+export * from "./patchFlags";

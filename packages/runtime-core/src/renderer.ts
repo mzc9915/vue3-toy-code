@@ -1,6 +1,9 @@
 import { ShapeFlags } from '@vue/shared'
 import { Fragment, isSameVnode, Text } from './createVnode'
-import getSquence from '../seq'
+import getSquence from './seq'
+import { createComponentInstance, setupComponent } from './component'
+import { reactive, ReactiveEffect } from '@vue/reactivity'
+import { queueJob } from './scheduler'
 
 export const createRenderer = (rendererOptions) => {
     // core中不关心如何渲染
@@ -309,6 +312,161 @@ export const createRenderer = (rendererOptions) => {
         }
     }
 
+    const setupRenderEffect = (instance, container, anchor, parentComponent) => {
+        const { render } = instance
+        const componentUpdateFn = () => {
+            // 区分初次渲染 和 组件更新
+            if(!instance.isMounted){
+                // 向 render 函数中传入 state: render(proxy) 和 绑定this
+                const subTree = render.call(instance.proxy,instance.proxy)
+                patch(null, subTree, container, anchor)
+                instance.subTree = subTree
+                instance.isMounted = true
+            }else{
+                console.log('组件更新 XXXXXXXX', instance);
+                // debugger
+                
+                let { next } = instance
+                if(next){
+                    // 更新属性和插槽
+                    updateComponentPreRender(instance, next)
+                }
+
+                const subTree = render.call(instance.proxy,instance.proxy)
+                patch(instance.subTree, subTree, container, anchor)
+                instance.subTree = subTree
+            }
+        }
+
+        // 组件的异步更新
+        const effect = new ReactiveEffect(componentUpdateFn, ()=>
+            queueJob(update)
+        )
+        // 将组件强制更新的逻辑保存到了组件的实例上，后续可以使用
+        let update = instance.update = () => effect.run()  // 调用effect.run可以让组件强制重新渲染
+
+        update()
+    }
+
+    /** 组件流程整合 */
+    const mountComponent = (vnode, container, anchor, parentComponent) => {
+        // 1. 先创建组件实例
+        const instance = (vnode.component = createComponentInstance(vnode, parentComponent))
+
+        // 2.给组件实例的属性赋值
+        setupComponent(instance)
+
+        // 3. 创建一个渲染effect，用于更新组件
+        setupRenderEffect(instance, container, anchor, parentComponent)
+    }
+
+    // const mountComponent = (vnode, container, anchor, parentComponent) => {
+    //     const { render, data = ()=>({}) } = vnode.type
+    //     const state = reactive(data())
+
+    //     const instance = {
+    //         state,
+    //         isMounted: false, // 是否挂载
+    //         subTree: null, // 组件对应的子树
+    //         update: null,
+    //         vnode
+    //     }
+
+    //     const componentUpdateFn = () => {
+    //         // 区分初次渲染 和 组件更新
+    //         if(!instance.isMounted){
+    //             // 向 render 函数中传入 state: render(proxy)
+    //             const subTree = render.call(state, state)
+    //             patch(null, subTree, container, anchor)
+    //             instance.subTree = subTree
+    //             instance.isMounted = true
+    //         }else{
+    //             const subTree = render.call(state, state)
+    //             patch(instance.subTree, subTree, container, anchor)
+    //             instance.subTree = subTree
+    //         }
+    //     }
+
+    //     const effect = new ReactiveEffect(componentUpdateFn, ()=>queueJob(instance.update))
+    //     const update = instance.update = effect.run.bind(effect)
+
+    //     update()
+    // }
+    const hasPropsChanged = (prevProps, nextProps) => {
+        const nextKeys = Object.keys(nextProps)
+        if(nextKeys.length !== Object.keys(prevProps).length){
+            return true
+        }
+
+        for (let i = 0; i < nextKeys.length; i++) {
+            const key = nextKeys[i]
+            if(nextProps[key] !== prevProps[key]){
+                return true
+            }
+        }
+
+        return false
+    }
+
+    const shouleUpdateComponent = (n1,n2) => {
+        const { props: prevProps, children: prevChildren } = n1
+        const { props: nextProps, children: nextChildren } = n2
+
+        // 有插槽直接走重新渲染即可
+        if(prevChildren || nextChildren) return true
+
+        if(prevProps === nextProps) return false
+
+        return hasPropsChanged(prevProps, nextProps)
+    }
+
+    const updateProps = (instance, prevProps, nextProps)=>{
+        if(hasPropsChanged(prevProps, nextProps)){
+            for (const key in nextProps) {
+                // 用新的覆盖掉所有老的
+                instance.props[key] = nextProps[key]
+            }
+    
+            for (const key in prevProps) {
+                if(!(key in nextProps)){
+                    delete prevProps[key]
+                }
+            }
+        }
+    }
+
+    const updateComponentPreRender = (instance, next) => {
+        instance.next = null
+        instance.vnode = next
+        updateProps(instance, instance.props, next.props)
+    }
+
+    // 触发组件更新的方式主要有3 种，props属性、data 状态 和 插槽slot
+    const updateComponet = (n1, n2) => {
+        console.log('updateComponent');
+        debugger
+
+        // 复用组件的实例
+        const instance = (n2.component = n1.component)
+        if(shouleUpdateComponent(n1,n2)){
+            // 将新的虚拟节点放到next属性上， 如果调用update 有next属性，说明是属性/插槽更新
+            instance.next = n2
+            // 手动调用调用更新方法
+            instance.update()
+        }
+    }
+
+    const processComponent = (n1, n2, container, anchor = null, parentComponent = null) => {
+        // 初始化组件
+        if(n1 === null){
+            mountComponent(n2, container, anchor, parentComponent)
+        }else{
+            // 组件更新
+            updateComponet(n1, n2)
+        }
+    }
+
+
     // 初始化和 diff 在这里处理
     const patch = (n1, n2, container, anchor = null, parentComponent = null) => {
         if(n1 === n2){
@@ -322,7 +480,7 @@ export const createRenderer = (rendererOptions) => {
             n1 = null
         }
 
-        const { type, shapeFlag, ref } = n2
+        const { type, shapeFlag } = n2
 
         switch (type) {
             // renderer.render(h(Text,'jw handsome'),document.getElementById('app'))
@@ -336,6 +494,8 @@ export const createRenderer = (rendererOptions) => {
                 if(shapeFlag & ShapeFlags.ELEMENT){
                     // 对元素处理
                     processElement(n1, n2, container, anchor, parentComponent)
+                }else if(shapeFlag & ShapeFlags.COMPONENT){
+                    processComponent(n1, n2, container, anchor)
                 }
         }
     }

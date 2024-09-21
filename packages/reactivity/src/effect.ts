@@ -45,11 +45,11 @@ const postCleanEffect = (effect) => {
 export let activeEffect;
 
 export class ReactiveEffect {
-    _trackId = 0 // 用于记录当前effet 执行了几次
+    _trackId = 0 // 用于记录当前effet 执行了几次(防止一个属性在当前effect中多次依赖收集)
     _depsLength = 0
     _running = 0
     _dirtyLevel = DirtyLevels.DIRTY
-    active = true
+    public active = true
     deps = [] // 收集 effect 中使用到的属性
 
     // 如果fn中依赖的数据发生变化后，需要重新调用 -> run()
@@ -75,7 +75,7 @@ export class ReactiveEffect {
             return this.fn()
         }
 
-        const currentEffect = activeEffect
+        let lastEffect = activeEffect
         
         try{
             activeEffect = this
@@ -88,7 +88,7 @@ export class ReactiveEffect {
         }finally{
             this._running--;
             postCleanEffect(this)
-            activeEffect = currentEffect
+            activeEffect = lastEffect
         }
     }
 
@@ -98,7 +98,7 @@ export class ReactiveEffect {
           preCleanEffect(this);
           postCleanEffect(this);
         }
-      }
+    }
 }
 
 const cleanDepEffect = (dep, effect)=>{
